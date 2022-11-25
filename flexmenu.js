@@ -1,4 +1,4 @@
-/*	jQuery.flexMenu 1.3
+/*	jQuery.flexMenu 1.6.2
 	https://github.com/352Media/flexMenu
 	Description: If a list is too long for all items to fit on one line, display a popup menu instead.
 	Dependencies: jQuery, Modernizr (optional). Without Modernizr, the menu can only be shown on click (not hover). */
@@ -12,15 +12,21 @@
 		factory(jQuery);
 	}
 }(function ($) {
+	var windowWidth = $(window).width(); // Store the window width
+  	var windowHeight = $(window).height(); // Store the window height
 	var flexObjects = [], // Array of all flexMenu objects
 		resizeTimeout;
 	// When the page is resized, adjust the flexMenus.
 	function adjustFlexMenu() {
-		$(flexObjects).each(function () {
-			$(this).flexMenu({
-				'undo' : true
-			}).flexMenu(this.options);
-		});
+		if ($(window).width() !== windowWidth || $(window).height() !== windowHeight) {
+			$(flexObjects).each(function () {
+				$(this).flexMenu({
+					'undo' : true
+				}).flexMenu(this.options);
+			});
+			windowWidth = $(window).width(); // Store the window width if it changed
+			windowHeight = $(window).height(); // Store the window height if it changed
+		}
 	}
 	function collapseAllExcept($menuToAvoid) {
 		var $activeMenus,
@@ -44,6 +50,7 @@
 				'linkTitle' : 'View More', // [string] What should the title of the "view more" button be?
 				'linkTextAll' : 'Menu', // [string] If we hit the cutoff, what text should we display on the "view more" link?
 				'linkTitleAll' : 'Open/Close Menu', // [string] If we hit the cutoff, what should the title of the "view more" button be?
+				'shouldApply' : function() { return true; }, // [function] Function called before applying flexMenu. If it returns false, it will not be applied.
 				'showOnHover' : true, // [boolean] Should we we show the menu on hover? If not, we'll require a click. If we're on a touch device - or if Modernizr is not available - we'll ignore this setting and only show the menu on click. The reason for this is that touch devices emulate hover events in unpredictable ways, causing some taps to do nothing.
 				'popupAbsolute' : true, // [boolean] Should we absolutely position the popup? Usually this is a good idea. That way, the popup can appear over other content and spill outside a parent that has overflow: hidden set. If you want to do something different from this in CSS, just set this option to false.
 				'popupClass' : '', // [string] If this is set, this class will be added to the popup
@@ -59,10 +66,9 @@
 		return this.each(function () {
 			var $this = $(this),
 				$items = $this.find('> li'),
-				$self = $this,
 				$firstItem = $items.first(),
 				$lastItem = $items.last(),
-				numItems = $this.find('li').length,
+				numItems = $items.length,
 				firstItemTop = Math.floor($firstItem.offset().top),
 				firstItemHeight = Math.floor($firstItem.outerHeight(true)),
 				$lastChild,
@@ -78,17 +84,16 @@
 				// Values may be calculated from em and give us something other than round numbers. Browsers may round these inconsistently. So, let's round numbers to make it easier to trigger flexMenu.
 				return result;
 			}
-			if (needsMenu($lastItem) && numItems > s.threshold && !s.undo && $this.is(':visible')) {
-				var $popup = $('<ul class="flexMenu-popup" style="display:none;' + ((s.popupAbsolute) ? ' position: absolute;' : '') + '"></ul>'),
-				// Move all list items after the first to this new popup ul
-					firstItemOffset = $firstItem.offset().top;
+			if (needsMenu($lastItem) && numItems > s.threshold && !s.undo && $this.is(':visible')
+				&& (s.shouldApply())) {
+				var $popup = $('<ul class="flexMenu-popup" style="display:none;' + ((s.popupAbsolute) ? ' position: absolute;' : '') + '"></ul>');
 				// Add class if popupClass option is set
 				$popup.addClass(s.popupClass);
+				// Move all list items after the first to this new popup ul
         for (i = numItems; i > 1; i--) {
 					// Find all of the list items that have been pushed below the first item. Put those items into the popup menu. Put one additional item into the popup menu to cover situations where the last item is shorter than the "more" text.
 					$lastChild = $this.find('> li:last-child');
 					keepLooking = (needsMenu($lastChild));
-					$lastChild.appendTo($popup);
 					// If there only a few items left in the navigation bar, move them all to the popup menu.
 					if ((i - 1) <= s.cutoff) { // We've removed the ith item, so i - 1 gives us the number of items remaining.
 						$($this.children().get().reverse()).appendTo($popup);
@@ -97,6 +102,8 @@
 					}
 					if (!keepLooking) {
 						break;
+					} else {
+						$lastChild.appendTo($popup);
 					}
 				}
 				if (allInPopup) {
